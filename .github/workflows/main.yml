@@ -1,0 +1,31 @@
+name: Run PR TIMES Collector
+
+on:
+  schedule:
+    # 3時間おきに実行 (UTC時間なので、日本時間より9時間早いです)
+    - cron: '0 */3 * * *'
+  workflow_dispatch: # 手動実行も可能にします
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: os-actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run script
+      env:
+        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+      run: python collect_prtimes.py
