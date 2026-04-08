@@ -1,6 +1,8 @@
 name: Run PR TIMES Collector
 
 on:
+  push:
+    branches: [ main ]
   schedule:
     # 3時間おきに実行 (UTC時間なので、日本時間より9時間早いです)
     - cron: '0 */3 * * *'
@@ -12,10 +14,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
 
