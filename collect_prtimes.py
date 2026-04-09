@@ -20,9 +20,18 @@ from google.oauth2.service_account import Credentials
 
 KEYWORDS = [
     "ベイクルーズ",
+    "JOURNAL STANDARD",
     "トゥモローランド",
+    "MACPHEE",
     "株式会社ジュン",
     "JUN GROUP",
+    "ADAM ET ROPE",
+    "ワールド",
+    "マッシュホールディングス",
+    "デイトナ・インターナショナル",
+    "TSIホールディングス",
+    "ストライプインターナショナル",
+    "ユナイテッドアローズ",
 ]
 
 # PR TIMES 全体RSS
