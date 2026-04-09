@@ -19,9 +19,10 @@ from google.oauth2.service_account import Credentials
 # ── 設定 ────────────────────────────────────────────────────────────────────
 
 KEYWORDS = [
-    "株式会社ベイクルーズ",
-    "株式会社 トゥモローランド",
+    "ベイクルーズ",
+    "トゥモローランド",
     "株式会社ジュン",
+    "JUN GROUP",
 ]
 
 # PR TIMES 全体RSS
@@ -139,7 +140,9 @@ def main() -> None:
         
         matched_articles = []
         for article in all_articles:
-            if keyword in article["title"] or keyword in article["summary"]:
+            # 大文字・小文字を区別せずに検索
+            search_text = (article["title"] + " " + article["summary"]).lower()
+            if keyword.lower() in search_text:
                 matched_articles.append(article)
                 
         print(f"  キーワード一致件数: {len(matched_articles)} 件")
