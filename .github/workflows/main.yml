@@ -26,8 +26,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run script
+    - name: Run PR TIMES Collector
       env:
         GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
         SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
       run: python collect_prtimes.py
+
+    - name: Run Gmail Collector
+      env:
+        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+        GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      run: python collect_emails.py
