@@ -1,3 +1,5 @@
 feedparser
 gspread
 google-auth
+beautifulsoup4
+requests

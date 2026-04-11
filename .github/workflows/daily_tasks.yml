@@ -1,10 +1,10 @@
-name: Run Gmail Collector
+name: Daily Fashion Data Collection
 
 on:
   schedule:
     # 毎日 日本時間 9:00 (UTC 0:00) に1回実行
     - cron: '0 0 * * *'
-  workflow_dispatch: # 手動実行も可能にします
+  workflow_dispatch:
 
 jobs:
   build:
@@ -31,3 +31,9 @@ jobs:
         GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
         GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
       run: python collect_emails.py
+
+    - name: Run Industry News Collector
+      env:
+        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+      run: python collect_industry_news.py
