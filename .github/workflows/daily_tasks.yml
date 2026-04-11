@@ -37,3 +37,9 @@ jobs:
         GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
         SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
       run: python collect_industry_news.py
+
+    - name: Run Data Consolidation
+      env:
+        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+      run: python consolidate_data.py
