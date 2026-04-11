@@ -4,9 +4,9 @@ on:
   push:
     branches: [ main ]
   schedule:
-    # 3時間おきに実行 (UTC時間なので、日本時間より9時間早いです)
+    # 3時間おきに実行
     - cron: '0 */3 * * *'
-  workflow_dispatch: # 手動実行も可能にします
+  workflow_dispatch:
 
 jobs:
   build:
@@ -31,11 +31,3 @@ jobs:
         GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
         SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
       run: python collect_prtimes.py
-
-    - name: Run Gmail Collector
-      env:
-        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
-        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-        GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
-        GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-      run: python collect_emails.py
