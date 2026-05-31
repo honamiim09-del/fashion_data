@@ -97,10 +97,16 @@ def fetch_all_articles(url: str) -> list[dict]:
     articles = []
     for entry in feed.entries:
         published = ""
+        published_dt = None
         if hasattr(entry, "published_parsed") and entry.published_parsed:
-            published = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
+            published_dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+            published = published_dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        # もし発表日時が取得できており、それが現在より30日以上前ならスキップ
+        if published_dt:
+            now_utc = datetime.now(timezone.utc)
+            if (now_utc - published_dt).days > 30:
+                continue
 
         summary = getattr(entry, "summary", "")
         # HTML タグを簡易除去
