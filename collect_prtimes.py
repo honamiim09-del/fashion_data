@@ -10,11 +10,14 @@ PR TIMES RSS から特定企業のニュースを取得し、Google スプレッ
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 import feedparser
 import gspread
 from google.oauth2.service_account import Credentials
+
+from collect_data import fetch_article_body, summarize_text
 
 # ── 設定 ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +35,9 @@ KEYWORDS = [
     "TSIホールディングス",
     "ストライプインターナショナル",
     "ユナイテッドアローズ",
+    "株式会社リンク・セオリー・ジャパン",
+    "Theory",
+    "UNTITLED"
 ]
 
 # PR TIMES 全体RSS
@@ -42,22 +48,29 @@ SCOPES = [
 ]
 
 # スプレッドシートのヘッダー定義
-HEADERS = ["取得日時", "企業名（キーワード）", "タイトル", "URL", "発表日時", "概要"]
+HEADERS = ["取得日時", "企業名（キーワード）", "タイトル", "URL", "発表日時", "概要", "本文", "AI要約"]
 
 # ── 認証 ────────────────────────────────────────────────────────────────────
 
 
 def get_spreadsheet(spreadsheet_id: str, sheet_name: str) -> gspread.Worksheet:
-    """環境変数から認証情報を読み込み、ワークシートを返す。"""
+    """認証を行い、ワークシートを返す。"""
     credentials_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
-    if not credentials_json:
-        raise EnvironmentError(
-            "環境変数 GOOGLE_CREDENTIALS_JSON が設定されていません。"
+    
+    if credentials_json:
+        # サービスアカウント（GitHub Actions 用）
+        credentials_dict = json.loads(credentials_json)
+        creds = Credentials.from_service_account_info(credentials_dict, scopes=SCOPES)
+        client = gspread.authorize(creds)
+    else:
+        # ローカル実行用（ブラウザ認証）
+        print("GOOGLE_CREDENTIALS_JSON が見つからないため、ブラウザ認証を開始します...")
+        client_secret_path = "/Users/honami/Downloads/client_secret_54835506179-o2nulvaqu9qoggb1cba1tnbftcnusjvl.apps.googleusercontent.com.json"
+        client = gspread.oauth(
+            credentials_filename=client_secret_path,
+            authorized_user_filename="authorized_user.json",
+            scopes=SCOPES
         )
-
-    credentials_dict = json.loads(credentials_json)
-    creds = Credentials.from_service_account_info(credentials_dict, scopes=SCOPES)
-    client = gspread.authorize(creds)
 
     spreadsheet = client.open_by_key(spreadsheet_id)
 
@@ -162,6 +175,15 @@ def main() -> None:
                 skipped += 1
                 continue
 
+            print(f"    本文を取得中: {article['title']}")
+            body_text = fetch_article_body(article["url"])
+            
+            print(f"    AI要約を生成中...")
+            ai_summary = summarize_text(body_text)
+            
+            # API制限（1分間に5回）を避けるため、15秒待機
+            time.sleep(15)
+            
             new_rows.append(
                 [
                     now,
@@ -170,6 +192,8 @@ def main() -> None:
                     article["url"],
                     article["published"],
                     article["summary"],
+                    body_text,
+                    ai_summary,
                 ]
             )
             existing_urls.add(article["url"])
