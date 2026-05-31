@@ -172,18 +172,22 @@ def send_daily_report():
         body += "<br>"
 
     # ── メールの送信 ──────────────────────────────────────────────────────────
-    msg = MIMEMultipart()
-    msg['From'] = email_sender
-    msg['To'] = email_receiver
-    msg['Subject'] = f"【Fashion Data】デイリーレポート ({now_utc.strftime('%Y-%m-%d')})"
+    # 複数宛先（カンマ区切り）に対応し、お互いのアドレスが見えないように1件ずつ個別に送信する
+    receivers = [r.strip() for r in email_receiver.split(',') if r.strip()]
     
-    msg.attach(MIMEText(body, 'html'))
-
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(email_sender, email_password)
-            server.send_message(msg)
-        print(f"メール送信完了: {count}件の記事を {email_receiver} へ送りました。")
+            
+            for receiver in receivers:
+                msg = MIMEMultipart()
+                msg['From'] = email_sender
+                msg['To'] = receiver
+                msg['Subject'] = f"【Fashion Data】デイリーレポート ({now_utc.strftime('%Y-%m-%d')})"
+                msg.attach(MIMEText(body, 'html'))
+                
+                server.send_message(msg)
+                print(f"メール送信完了: {count}件の記事を {receiver} へ送りました。")
     except Exception as e:
         print(f"メール送信エラー: {e}")
 
