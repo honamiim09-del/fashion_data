@@ -5,125 +5,134 @@ import json
 import sys
 from datetime import datetime, timezone
 import time
-
 import gspread
 from google.oauth2.service_account import Credentials
+import feedparser # RSSの読み取り用
+import urllib.parse
 
 # ── 設定 ────────────────────────────────────────────────────────────────────
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 HEADERS = ["取得日時", "メディア", "タイトル", "URL", "公開日"]
 
-SOURCES = [
-    {
-        "name": "WWDJAPAN",
-        "url": "https://www.wwdjapan.com/category/fashion/news-fashion",
-        "container": "article.entry-item",
-        "title_selector": "h2.entry-title a",
-        "date_selector": "div.time",
-        "base_url": "https://www.wwdjapan.com"
-    },
-    {
-        "name": "繊研新聞",
-        "url": "https://senken.co.jp/tags/breaking-news",
-        "container": "div.post-large, div.post-small",
-        "title_selector": "h2 a, h3 a",
-        "date_selector": "p.m-b-h, small",
-        "base_url": "https://senken.co.jp"
-    }
+# 重点的に追いたいキーワード（ファッション・アパレルを組み合わせて精度向上）
+KEYWORDS = [
+    "ベイクルーズ ファッション", "ユナイテッドアローズ", "アダストリア アパレル", 
+    "Theory ファッション", "セオリー アパレル",
+    "ワールド アパレル", "マッシュホールディングス", "TSIホールディングス", 
+    "ストライプインターナショナル", "トゥモローランド ファッション",
+    "ファッション 決算", "アパレル 店舗 出店", "百貨店 ファッション ニュース"
+]
+
+# 除外キーワード（これらがタイトルに含まれる場合はスキップ）
+EXCLUDE_KEYWORDS = [
+    "ゲーム", "アニメ", "スポーツ", "ワールドカップ", "世界情勢", "事件", "事故", 
+    "理論", "相対性理論", "学説", "政治", "芸能", "映画", "ドラマ"
+]
+
+# RSSソース
+RSS_SOURCES = [
+    {"name": "FASHIONSNAP", "url": "https://www.fashionsnap.com/feed/"},
+    {"name": "流通ニュース", "url": "https://www.ryutsuu.biz/feed"},
+    {"name": "繊研新聞", "url": "https://senken.co.jp/posts.rss"},
+    {"name": "Fashion Business", "url": "https://www.fashion-business.co.jp/feed"}
 ]
 
 # ── 認証 ────────────────────────────────────────────────────────────────────
 
 def get_spreadsheet(spreadsheet_id, sheet_name):
     creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
-    if not creds_json:
-        raise EnvironmentError("GOOGLE_CREDENTIALS_JSON が設定されていません。")
-    
-    creds_dict = json.loads(creds_json)
-    creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-    client = gspread.authorize(creds)
-    
-    spreadsheet = client.open_by_key(spreadsheet_id)
-    try:
-        worksheet = spreadsheet.worksheet(sheet_name)
-    except gspread.exceptions.WorksheetNotFound:
-        worksheet = spreadsheet.add_worksheet(title=sheet_name, rows=1000, cols=10)
-        worksheet.append_row(HEADERS)
-        print(f"シート '{sheet_name}' を新規作成しました。")
-    return worksheet
+    if creds_json:
+        creds_dict = json.loads(creds_json)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+        client = gspread.authorize(creds)
+    else:
+        print("GOOGLE_CREDENTIALS_JSON が見つからないため、ブラウザ認証を開始します...")
+        client_secret_path = "/Users/honami/Downloads/client_secret_54835506179-o2nulvaqu9qoggb1cba1tnbftcnusjvl.apps.googleusercontent.com.json"
+        client = gspread.oauth(
+            credentials_filename=client_secret_path,
+            authorized_user_filename="authorized_user.json",
+            scopes=SCOPES
+        )
+    return client.open_by_key(spreadsheet_id).worksheet(sheet_name)
 
-# ── スクレイピング ───────────────────────────────────────────────────────────
+# ── 収集ロジック ─────────────────────────────────────────────────────────────
 
-def scrape_news():
-    all_news = []
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36"
-    }
-
-    for source in SOURCES:
-        print(f"{source['name']} を取得中...")
+def fetch_rss_news():
+    news_list = []
+    for src in RSS_SOURCES:
+        print(f"RSS取得中: {src['name']}...")
         try:
-            response = requests.get(source["url"], headers=headers, timeout=15)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.content, "html.parser")
-            
-            items = soup.select(source["container"])
-            print(f"  {len(items)} 件の要素が見つかりました。")
-
-            for item in items[:15]: # 各サイト上位15件程度
-                title_elem = item.select_one(source["title_selector"])
-                if not title_elem: continue
-                
-                title = title_elem.get_text(strip=True)
-                link = title_elem.get("href")
-                if not link.startswith("http"):
-                    link = source["base_url"] + link
-                
-                date_elem = item.select_one(source["date_selector"])
-                date_str = date_elem.get_text(strip=True) if date_elem else ""
-
-                all_news.append({
-                    "media": source["name"],
-                    "title": title,
-                    "url": link,
-                    "date": date_str
+            d = feedparser.parse(src["url"])
+            for entry in d.entries[:20]:
+                news_list.append({
+                    "media": src["name"],
+                    "title": entry.title,
+                    "url": entry.link,
+                    "date": entry.get("published", "")
                 })
-            
-            # サーバー負荷軽減のため少し待つ
-            time.sleep(2)
-            
         except Exception as e:
-            print(f"エラー ({source['name']}): {e}")
+            print(f"エラー ({src['name']}): {e}")
+    return news_list
 
-    return all_news
+def fetch_google_news():
+    """Googleニュースからキーワード検索で記事を取得"""
+    news_list = []
+    for kw in KEYWORDS:
+        print(f"Googleニュース検索中: {kw}...")
+        encoded_kw = urllib.parse.quote(kw)
+        url = f"https://news.google.com/rss/search?q={encoded_kw}&hl=ja&gl=JP&ceid=JP:ja"
+        try:
+            d = feedparser.parse(url)
+            for entry in d.entries[:10]: # 各キーワード上位10件
+                news_list.append({
+                    "media": f"Googleニュース({kw})",
+                    "title": entry.title,
+                    "url": entry.link,
+                    "date": entry.published
+                })
+            time.sleep(1) # 負荷軽減
+        except Exception as e:
+            print(f"エラー (Google News {kw}): {e}")
+    return news_list
 
 # ── メイン ───────────────────────────────────────────────────────────────────
 
 def main():
-    spreadsheet_id = os.environ.get("SPREADSHEET_ID")
-    if not spreadsheet_id: sys.exit(1)
-        
+    spreadsheet_id = os.environ.get("SPREADSHEET_ID", "1kj2nX1v6LU9SUzxUB2Gc8A4ZkWWmQ2fnfojfIc6nmyY")
     sheet_name = "Industry_News"
+    
     worksheet = get_spreadsheet(spreadsheet_id, sheet_name)
     
-    print("既存のURLを取得中...")
-    all_values = worksheet.get_all_values()
-    existing_urls = set()
-    for row in all_values[1:]:
-        if len(row) >= 4:
-            existing_urls.add(row[3])
-            
-    print("最新ニュースをスクレイピング中...")
-    news_list = scrape_news()
+    # 既存のURLを取得して重複を避ける
+    existing_urls = set(worksheet.col_values(4))
     
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    # ニュース収集
+    all_raw_news = fetch_rss_news() + fetch_google_news()
+    
     new_rows = []
+    now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
     
-    for news in news_list:
+    # ブランド名や重要語が含まれるものだけに絞り込む（精度向上）
+    # ※Googleニュースはすでにキーワードで検索済みだが、RSSの方はここでフィルタリング
+    filter_keywords = [
+        "ベイクルーズ", "ユナイテッドアローズ", "アダストリア", "Theory", "セオリー",
+        "ワールド", "マッシュ", "TSI", "ストライプ", "トゥモローランド", "決算", "店舗", "出店"
+    ]
+
+    for news in all_raw_news:
         if news["url"] in existing_urls:
             continue
             
+        # タイトルに関連ワードが含まれているか確認
+        is_relevant = any(k.lower() in news["title"].lower() for k in filter_keywords)
+        
+        # 除外キーワードが含まれているか確認
+        is_excluded = any(ex.lower() in news["title"].lower() for ex in EXCLUDE_KEYWORDS)
+        
+        if (not is_relevant and "Googleニュース" not in news["media"]) or is_excluded:
+            continue
+
         new_rows.append([
             now,
             news["media"],
@@ -134,7 +143,8 @@ def main():
         existing_urls.add(news["url"])
         
     if new_rows:
-        print(f"\n{len(new_rows)} 件の新しい業界ニュースを追記します...")
+        print(f"\n{len(new_rows)} 件の新しいニュースを追加します...")
+        # 重複を排除して最新順になるように（実際にはappendなので下に追加）
         worksheet.append_rows(new_rows, value_input_option="USER_ENTERED")
         print("完了しました。")
     else:

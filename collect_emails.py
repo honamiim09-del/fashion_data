@@ -21,7 +21,9 @@ TARGET_DOMAINS = [
     "daytona-park.com",
     "tsi-holdings.jp",
     "stripe-intl.com",
-    "united-arrows.co.jp"
+    "united-arrows.co.jp",
+    "theory.co.jp",
+    "untitled-intl.com",
 ]
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -32,12 +34,20 @@ HEADERS = ["取得日時", "送信者", "件名", "本文（抜粋）", "送信�
 
 def get_spreadsheet(spreadsheet_id, sheet_name):
     creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
-    if not creds_json:
-        raise EnvironmentError("GOOGLE_CREDENTIALS_JSON が設定されていません。")
-    
-    creds_dict = json.loads(creds_json)
-    creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-    client = gspread.authorize(creds)
+    if creds_json:
+        # サービスアカウント（GitHub Actions 用）
+        creds_dict = json.loads(creds_json)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+        client = gspread.authorize(creds)
+    else:
+        # ローカル実行用（ブラウザ認証）
+        print("GOOGLE_CREDENTIALS_JSON が見つからないため、ブラウザ認証を開始します...")
+        client_secret_path = "/Users/honami/Downloads/client_secret_54835506179-o2nulvaqu9qoggb1cba1tnbftcnusjvl.apps.googleusercontent.com.json"
+        client = gspread.oauth(
+            credentials_filename=client_secret_path,
+            authorized_user_filename="authorized_user.json",
+            scopes=SCOPES
+        )
     
     spreadsheet = client.open_by_key(spreadsheet_id)
     try:
@@ -50,9 +60,15 @@ def get_spreadsheet(spreadsheet_id, sheet_name):
 
 # ── 本文抽出 ────────────────────────────────────────────────────────────────
 
-def clean_html(html):
-    """HTMLタグを除去してテキストのみにする"""
-    text = re.sub(r'<[^>]+>', ' ', html)
+def clean_html(html_text):
+    """HTMLタグを除去してテキストのみにする（style, scriptは中身ごと削除）"""
+    # styleタグと中身を削除
+    text = re.sub(r'<style.*?>.*?</style>', '', html_text, flags=re.DOTALL | re.IGNORECASE)
+    # scriptタグと中身を削除
+    text = re.sub(r'<script.*?>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    # その他のHTMLタグを除去
+    text = re.sub(r'<[^>]+>', ' ', text)
+    # 連続する空白や改行を整理
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 

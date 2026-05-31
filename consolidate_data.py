@@ -9,18 +9,28 @@ from google.oauth2.service_account import Credentials
 # ── 設定 ────────────────────────────────────────────────────────────────────
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-MASTER_HEADERS = ["取得日時", "出所", "タイトル", "URL", "発信日", "抜粋", "対象ブランド/メディア"]
+MASTER_HEADERS = ["取得日時", "出所", "タイトル", "URL", "発信日", "抜粋", "対象ブランド/メディア", "本文", "AI要約"]
 MASTER_SHEET_NAME = "Master_Timeline"
 
 # ── 認証 ────────────────────────────────────────────────────────────────────
 
 def get_client():
     creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
-    if not creds_json:
-        raise EnvironmentError("GOOGLE_CREDENTIALS_JSON が設定されていません。")
-    creds_dict = json.loads(creds_json)
-    creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-    return gspread.authorize(creds)
+    if creds_json:
+        # GitHub Actions などサービスアカウント用
+        import json
+        creds_dict = json.loads(creds_json)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+        return gspread.authorize(creds)
+    else:
+        # ローカル実行用（ブラウザ認証）
+        print("GOOGLE_CREDENTIALS_JSON が見つからないため、ブラウザ認証を開始します...")
+        client_secret_path = "/Users/honami/Downloads/client_secret_54835506179-o2nulvaqu9qoggb1cba1tnbftcnusjvl.apps.googleusercontent.com.json"
+        return gspread.oauth(
+            credentials_filename=client_secret_path,
+            authorized_user_filename="authorized_user.json",
+            scopes=['https://www.googleapis.com/auth/spreadsheets']
+        )
 
 def main():
     spreadsheet_id = os.environ.get("SPREADSHEET_ID")
@@ -41,9 +51,11 @@ def main():
         rows = ws_pr.get_all_values()
         if len(rows) > 1:
             for r in rows[1:]:
-                # [取得日時, 企業名, タイトル, URL, 発表日時, 概要]
+                # [取得日時, 企業名, タイトル, URL, 発表日時, 概要, 本文, AI要約]
                 if len(r) >= 5:
-                    all_data.append([r[0], "PR TIMES", r[2], r[3], r[4], r[5] if len(r) > 5 else "", r[1]])
+                    body = r[6] if len(r) > 6 else ""
+                    summary_ai = r[7] if len(r) > 7 else ""
+                    all_data.append([r[0], "PR TIMES", r[2], r[3], r[4], r[5] if len(r) > 5 else "", r[1], body, summary_ai])
     except Exception as e:
         print(f"PR_TIMES 読み込みエラー: {e}")
 
@@ -55,7 +67,8 @@ def main():
             for r in rows[1:]:
                 # [取得日時, 送信者, 件名, 本文, 送信日時, Message-ID]
                 if len(r) >= 5:
-                    all_data.append([r[0], "NEWSLETTER", r[2], "", r[4], r[3], r[1]])
+                    # Newsletterの場合は本文そのものを本文列に
+                    all_data.append([r[0], "NEWSLETTER", r[2], "", r[4], r[3], r[1], r[3], ""])
     except Exception as e:
         print(f"Newsletters 読み込みエラー: {e}")
 
@@ -67,7 +80,7 @@ def main():
             for r in rows[1:]:
                 # [取得日時, メディア, タイトル, URL, 公開日]
                 if len(r) >= 5:
-                    all_data.append([r[0], "INDUSTRY NEWS", r[2], r[3], r[4], "", r[1]])
+                    all_data.append([r[0], "INDUSTRY NEWS", r[2], r[3], r[4], "", r[1], "", ""])
     except Exception as e:
         print(f"Industry_News 読み込みエラー: {e}")
 

@@ -38,8 +38,24 @@ jobs:
         SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
       run: python collect_industry_news.py
 
+    - name: Run PR TIMES Collector
+      env:
+        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: python collect_prtimes.py
+
     - name: Run Data Consolidation
       env:
         GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
         SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
       run: python consolidate_data.py
+
+    - name: Run Daily Report
+      env:
+        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
+      run: python send_daily_report.py
