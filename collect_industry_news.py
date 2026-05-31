@@ -80,7 +80,8 @@ def fetch_google_news():
     news_list = []
     for kw in KEYWORDS:
         print(f"Googleニュース検索中: {kw}...")
-        encoded_kw = urllib.parse.quote(kw)
+        # 検索期間を「過去7日間（when:7d）」に限定して古い記事を除外
+        encoded_kw = urllib.parse.quote(kw + " when:7d")
         url = f"https://news.google.com/rss/search?q={encoded_kw}&hl=ja&gl=JP&ceid=JP:ja"
         try:
             d = feedparser.parse(url)
